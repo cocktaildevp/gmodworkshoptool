@@ -1,4 +1,4 @@
-# Garry's Mod Workshop Downloader
+# Garry's Mod Workshop Downloader - Garry's Mod Atölye Öğesi İndirme Aracı
 
    ######                    English
 
@@ -25,11 +25,11 @@
 - SteamCMD ile Garry's Mod atölye eklentilerini indirir ve `gmad.exe` ile `.gma` arşivlerini klasörlere açar.
 
 **Gereksinimler**
-- SteamCMD (script yoksa indirir veya kendi yolunuzu verebilirsiniz).
-- Garry's Mod kurulumundaki `gmad.exe` (`Steam\\steamapps\\common\\GarrysMod\\bin`).
+- SteamCMD (script yoksa indirir veya kendi dosya yolunuzu girebilirsiniz).
+- Garry's Mod dosya dizininde `gmad.exe` bulunması (`Steam\\steamapps\\common\\GarrysMod\\bin`).
 
 **Hızlı kullanım**
-1. `download_gmod_workshop.ps1` dosyasını çalıştırın (veya `run_downloader.bat`a çift tıklayın).
+1. PowerShell için `download_gmod_workshop.ps1` dosyasını çalıştırın (veya batchfile için `run_downloader.bat`a çift tıklayın).
 2. Atölye ID/URL'lerini boşluk ya da virgülle girin veya `-WorkshopIds` ve isteğe bağlı `-SteamCmdPath`, `-GmadPath`, `-ExtractRoot` parametrelerini kullanın.
 3. Açılan dosyalar `extracted/<id>/` klasörüne düşer.
 
