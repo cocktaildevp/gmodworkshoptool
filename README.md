@@ -2,7 +2,7 @@
 
    ######                    English
 
-**What it does**
+**What it does?**
 - Downloads Garry's Mod (app 4000) workshop add-ons with SteamCMD and unpacks the `.gma` files using `gmad.exe` into plain folders.
 
 **Requirements**
@@ -21,7 +21,7 @@
 
    ######                     Türkçe
 
-**Ne yapar**
+**Nedir?**
 - SteamCMD ile Garry's Mod atölye eklentilerini indirir ve `gmad.exe` ile `.gma` arşivlerini klasörlere açar.
 
 **Gereksinimler**
