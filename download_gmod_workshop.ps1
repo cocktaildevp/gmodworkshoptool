@@ -7,6 +7,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+trap {
+    Write-Host "`n========== FATAL ERROR ==========" -ForegroundColor Red
+    Write-Host $_ -ForegroundColor Red
+    Write-Host $_.ScriptStackTrace -ForegroundColor Yellow
+    Write-Host "================================" -ForegroundColor Red
+    Read-Host "Press Enter to close this window"
+    exit 1
+}
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location -Path $scriptRoot
 
@@ -222,42 +230,88 @@ function Handle-LegacyBins {
     )
 
     $convertedGmas = @()
-    $zipExtracted = $false
+
+    # Locate 7-Zip
+    $sevenZipCandidates = @(
+        "C:\Program Files\7-Zip\7z.exe",
+        "C:\Program Files (x86)\7-Zip\7z.exe"
+    )
+
+    $sevenZip = $sevenZipCandidates |
+        Where-Object { Test-Path -LiteralPath $_ } |
+        Select-Object -First 1
+
+    if (-not $sevenZip) {
+        throw "7-Zip not found. Install it before extracting legacy Workshop files."
+    }
 
     foreach ($bin in $BinFiles) {
-        $extracted = $false
-        try {
-            if (-not (Test-Path -LiteralPath $TargetFolder)) {
-                New-Item -ItemType Directory -Path $TargetFolder -Force | Out-Null
+        Write-Host "[7-ZIP] Extracting legacy file: $($bin.Name)" -ForegroundColor Yellow
+
+        # Use a temporary folder for the intermediate extraction
+        $tempFolder = Join-Path $TargetFolder ("legacy_" + [guid]::NewGuid().ToString())
+
+        New-Item -ItemType Directory -Path $tempFolder -Force | Out-Null
+
+        & $sevenZip x $bin.FullName "-o$tempFolder" -y
+        $sevenZipExitCode = $LASTEXITCODE
+
+        # Check whether files were extracted, regardless of 7-Zip's exit code
+        $extractedFiles = Get-ChildItem -Path $tempFolder -File -Recurse -ErrorAction SilentlyContinue
+
+        if (-not $extractedFiles -or $extractedFiles.Count -eq 0) {
+            Write-Warning "No files were extracted from $($bin.Name). 7-Zip exit code: $sevenZipExitCode"
+            continue
+        }
+
+        if ($sevenZipExitCode -ne 0) {
+            Write-Host "7-Zip returned exit code $sevenZipExitCode, but files were extracted. Continuing..." -ForegroundColor DarkYellow
+        }
+
+        # Find all extracted files
+        $extractedFiles = Get-ChildItem -Path $tempFolder -File -Recurse
+
+        foreach ($file in $extractedFiles) {
+
+            # Check for GMAD signature (Garry's Mod addon archive)
+            $headerBytes = New-Object byte[] 4
+
+            $stream = [System.IO.File]::Open(
+                $file.FullName,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::Read,
+                [System.IO.FileShare]::Read
+            )
+
+            try {
+                $bytesRead = $stream.Read($headerBytes, 0, 4)
             }
-            Expand-Archive -LiteralPath $bin.FullName -DestinationPath $TargetFolder -Force -ErrorAction Stop
-            $zipExtracted = $true
-            $extracted = $true
-            Write-Host "Unpacked legacy archive $($bin.Name) as ZIP." -ForegroundColor DarkYellow
-        }
-        catch {
-            Write-Verbose "Legacy archive $($bin.Name) not a ZIP: $($_.Exception.Message)"
+            finally {
+                $stream.Dispose()
+            }
+
+            if ($bytesRead -ge 4) {
+                $signature = [System.Text.Encoding]::ASCII.GetString($headerBytes)
+
+                if ($signature -eq "GMAD") {
+                    $gmaPath = Join-Path $TargetFolder ($bin.BaseName + ".gma")
+
+                    Copy-Item -LiteralPath $file.FullName -Destination $gmaPath -Force
+
+                    $convertedGmas += Get-Item -LiteralPath $gmaPath
+
+                    Write-Host "[OK] Found GMAD archive: $gmaPath" -ForegroundColor Green
+                }
+            }
         }
 
-        if ($extracted) { continue }
-
-        $headerBytes = New-Object byte[] 4
-        $stream = [System.IO.File]::Open($bin.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
-        $bytesRead = $stream.Read($headerBytes, 0, 4)
-        $stream.Dispose()
-        if ($bytesRead -lt 4) { continue }
-
-        $signature = [System.Text.Encoding]::ASCII.GetString($headerBytes)
-        if ($signature -eq 'GMAD') {
-            $newPath = [System.IO.Path]::ChangeExtension($bin.FullName, '.gma')
-            Copy-Item -LiteralPath $bin.FullName -DestinationPath $newPath -Force
-            $convertedGmas += Get-Item -LiteralPath $newPath
-        }
+        # Clean up temporary files
+        Remove-Item -LiteralPath $tempFolder -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     return [pscustomobject]@{
         ConvertedGmas = $convertedGmas
-        ZipExtracted  = $zipExtracted
+        ZipExtracted  = $false
     }
 }
 
@@ -316,3 +370,5 @@ foreach ($id in $ids) {
 }
 
 Write-Host "All tasks finished." -ForegroundColor Green
+Write-Host ""
+Read-Host "Script finished. Press Enter to close this window"
